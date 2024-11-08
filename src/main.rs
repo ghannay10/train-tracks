@@ -101,58 +101,69 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let services = fetch_services(&args.origin, args.destination.as_deref(), &username, &password).await?;
 
-    println!("\n{}", format!("Trains from {} for the next 3 hours:", args.origin.to_uppercase()).bold());
-    println!("{}", "=".repeat(50));
+    // print services
+    println!("{} services found", services.len());
+
+    const TOTAL_WIDTH: usize = 90;  // Adjust this based on your terminal width
+    println!("{}", "=".repeat(TOTAL_WIDTH));
+
     println!(
-        "{:6} {:6} {:10} {:6} {:20} {:20}",
-        "Time", "Exp.", "Platform", "Arrival", "Origin", "Destination"
+        "{:6} {:6} {:10} {:10} {:8} {:20} {:20}",
+        "Time", "Exp.", "Status", "Platform", "Arrival", "Origin", "Destination"
     );
-    println!("{}", "-".repeat(50));
+    println!("{}", "-".repeat(TOTAL_WIDTH));
+
 
     for service in services {
         let departure_str = format_time(&service.location.departure);
-
         let expected_departure = if let Some(realtime_departure) = &service.location.realtime_departure {
             format_time(&service.location.realtime_departure)
         } else {
             "N/A".to_string()
         };
-
+    
         let platform = service
             .location
             .platform
             .unwrap_or_else(|| "TBA".to_string())
             .blue()
             .to_string();
-
+    
         let destination = service
             .location
             .destination
             .first()
             .map(|d| d.description.clone())
             .unwrap_or_else(|| "Unknown".to_string());
-
+    
         let origin = service
             .location
             .origin
             .first()
             .map(|d| d.description.clone())
             .unwrap_or_else(|| "Unknown".to_string());
-
+    
         let exp_arrival = service
             .location
             .destination
             .first()
             .map(|d| d.publicTime.clone())
             .unwrap_or_else(|| "Unknown".to_string());
-
+    
+        let status = if departure_str == expected_departure {
+            "On time".green()
+        } else if departure_str == "N/A" || expected_departure == "N/A" {
+            "Unknown".yellow()
+        } else {
+            "Delayed".red()
+        };
+    
         println!(
-            "{:6} {:6} {:10} {:6} {:20} -> {:20}",
-            departure_str, expected_departure, platform, exp_arrival, origin, destination
+            "{:6} {:6} {:10} {:20} {:8} {:20} {:20}",
+            departure_str, expected_departure, status, platform, exp_arrival, origin, destination
         );
     }
-
-
+    
 
     Ok(())
 }
