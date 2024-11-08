@@ -31,7 +31,8 @@ struct ServiceLocation {
     #[serde(rename = "realtimeDeparture")]
     realtime_departure: Option<String>,
     destination: Vec<Station>,
-    origin: Vec<Station>
+    origin: Vec<Station>,
+    displayAs: String
 }
 
 #[derive(Debug, Deserialize)]
@@ -156,6 +157,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "Unknown".yellow()
         } else {
             "Delayed".red()
+        };
+
+        // if service.location.displayAs == "CANCELLED_CALL" change to Cancelled in red
+        let status = if service.location.displayAs == "CANCELLED_CALL" {
+            "Cancelled".red()
+        } else {
+            status
         };
     
         println!(
