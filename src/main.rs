@@ -1,4 +1,4 @@
-use chrono::{DateTime, Duration, Local};
+use base64::{Engine as _, engine::general_purpose};
 use clap::Parser;
 use colored::*;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
@@ -20,7 +20,8 @@ struct Args {
 #[derive(Debug, Deserialize)]
 struct Station {
     description: String,
-    publicTime: String
+    #[serde(rename = "publicTime")]
+    public_time: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -32,7 +33,8 @@ struct ServiceLocation {
     realtime_departure: Option<String>,
     destination: Vec<Station>,
     origin: Vec<Station>,
-    displayAs: String
+    #[serde(rename = "displayAs")]
+    display_as: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,8 +55,6 @@ async fn fetch_services(
     password: &str,
 ) -> Result<Vec<Service>, Box<dyn Error>> {
     let client = reqwest::Client::new();
-    
-    let now: DateTime<Local> = Local::now();
     let url = format!(
         "https://api.rtt.io/api/v1/json/search/{}",
         origin
@@ -70,7 +70,7 @@ async fn fetch_services(
     let mut headers = HeaderMap::new();
     let auth = format!(
         "Basic {}",
-        base64::encode(format!("{}:{}", username, password))
+        general_purpose::STANDARD.encode(format!("{}:{}", username, password))
     );
     headers.insert(AUTHORIZATION, HeaderValue::from_str(&auth)?);
 
@@ -117,11 +117,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     for service in services {
         let departure_str = format_time(&service.location.departure);
-        let expected_departure = if let Some(realtime_departure) = &service.location.realtime_departure {
-            format_time(&service.location.realtime_departure)
-        } else {
-            "N/A".to_string()
-        };
+        let expected_departure = format_time(&service.location.realtime_departure);
     
         let platform = service
             .location
@@ -148,7 +144,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .location
             .destination
             .first()
-            .map(|d| d.publicTime.clone())
+            .map(|d| d.public_time.clone())
             .unwrap_or_else(|| "Unknown".to_string());
     
         let status = if departure_str == expected_departure {
@@ -159,8 +155,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "Delayed".red()
         };
 
-        // if service.location.displayAs == "CANCELLED_CALL" change to Cancelled in red
-        let status = if service.location.displayAs == "CANCELLED_CALL" {
+        // if service.location.display_as == "CANCELLED_CALL" change to Cancelled in red
+        let status = if service.location.display_as == "CANCELLED_CALL" {
             "Cancelled".red()
         } else {
             status
