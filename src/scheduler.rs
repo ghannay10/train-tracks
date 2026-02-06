@@ -3,22 +3,25 @@ use std::collections::{HashMap, HashSet};
 use std::error::Error;
 
 use crate::api::{fetch_journeys, fetch_station_name, Journey};
-use crate::display::{print_header, print_journey};
 
-pub async fn fetch_and_display_journeys(
+pub struct JourneyResult {
+    pub journeys: Vec<Journey>,
+    pub stations: HashMap<String, String>,
+}
+
+pub async fn get_journeys(
     origin: &str,
     destination: &str,
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
-) -> Result<usize, Box<dyn Error>> {
+) -> Result<JourneyResult, Box<dyn Error>> {
     let now = Utc::now();
     let mut is_past = start_time < now;
 
     let mut seen: HashSet<String> = HashSet::new();
     let mut stations: HashMap<String, String> = HashMap::new();
     let mut batch: Vec<(String, Journey)> = Vec::new();
-    let mut count = 0;
-    let mut header_printed = false;
+    let mut result: Vec<Journey> = Vec::new();
 
     let mut query_time = if is_past {
         now.format("%Y-%m-%dT%H:%M:%SZ").to_string()
@@ -30,10 +33,8 @@ pub async fn fetch_and_display_journeys(
         let mode = if is_past { "ARRIVE" } else { "DEPART" };
         let response = fetch_journeys(origin, destination, &query_time, mode).await?;
 
-        if !header_printed {
+        if stations.is_empty() {
             stations = response.station_lookup;
-            print_header(origin, destination, &stations);
-            header_printed = true;
         }
 
         if response.outward_journeys.is_empty() {
@@ -52,7 +53,6 @@ pub async fn fetch_and_display_journeys(
         }
 
         // On first loop if start time is in the past, query from now to get any recently departed journeys.
-        // This is because the API doesn't allow querying in the past, but we still want to show recently departed journeys if user queries from a past time.
         if is_past {
             is_past = false;
             query_time = (now - Duration::minutes(20))
@@ -63,11 +63,11 @@ pub async fn fetch_and_display_journeys(
 
         // Check if we need to paginate
         let Some(dep) = last_dep else {
-            print_batch(&mut batch, None, &stations, &mut count).await;
+            collect_batch(&mut batch, None, &mut result);
             break;
         };
         if dep >= end_time {
-            print_batch(&mut batch, None, &stations, &mut count).await;
+            collect_batch(&mut batch, None, &mut result);
             break;
         }
 
@@ -75,8 +75,7 @@ pub async fn fetch_and_display_journeys(
             .format("%Y-%m-%dT%H:%M:%SZ")
             .to_string();
 
-        // API doesnt always return in perfect order. Peek at next batch to determine if we can print current batch or need to wait for next page
-        // makes sure printed in order.
+        // Peek at next batch to determine ordering
         let next_batch = fetch_journeys(origin, destination, &query_time, "DEPART").await?;
         let min_next_departure_time = next_batch
             .outward_journeys
@@ -86,7 +85,7 @@ pub async fn fetch_and_display_journeys(
             .map(|dt| dt.with_timezone(&Utc))
             .min();
 
-        print_batch(&mut batch, min_next_departure_time, &stations, &mut count).await;
+        collect_batch(&mut batch, min_next_departure_time, &mut result);
 
         let mut last_departure_time = None;
         for journey in next_batch.outward_journeys {
@@ -105,7 +104,10 @@ pub async fn fetch_and_display_journeys(
         }
     }
 
-    Ok(count)
+    Ok(JourneyResult {
+        journeys: result,
+        stations,
+    })
 }
 
 async fn process_journey(
@@ -132,7 +134,7 @@ async fn process_journey(
         return None;
     }
 
-    // Lookup unknown terminus stations. e.g PAD to Paddington
+    // Lookup unknown terminus stations
     for l in &journey.legs {
         for crs in &l.destinations {
             if !stations.contains_key(crs) {
@@ -153,11 +155,10 @@ async fn process_journey(
     Some((sort_time, dep_utc))
 }
 
-async fn print_batch(
+fn collect_batch(
     batch: &mut Vec<(String, Journey)>,
     min_next: Option<DateTime<Utc>>,
-    stations: &HashMap<String, String>,
-    count: &mut usize,
+    result: &mut Vec<Journey>,
 ) {
     batch.sort_by(|a, b| a.0.cmp(&b.0));
     let mut saved_for_next_batch = Vec::new();
@@ -170,8 +171,7 @@ async fn print_batch(
             };
 
         if departs_before_next_batch {
-            print_journey(&journey, stations).await;
-            *count += 1;
+            result.push(journey);
         } else {
             saved_for_next_batch.push((sort_time, journey));
         }

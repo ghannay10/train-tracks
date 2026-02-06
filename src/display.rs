@@ -16,13 +16,19 @@ fn print_row(
     operator: &str,
     from: &str,
     terminus: &str,
+    is_change: bool,
     dimmed: bool,
 ) {
+    let duration_colored = if is_change {
+        format!("{:10}", duration).yellow()
+    } else {
+        format!("{:10}", duration).normal()
+    };
     let row = format!(
-        "{:6} {:6} {:10} {} {:8} {:12} {:20} {:20}",
+        "{:6} {:6} {} {} {:8} {:12} {:20} {:20}",
         dep,
         arr,
-        duration,
+        duration_colored,
         status,
         platform.blue(),
         operator,
@@ -172,6 +178,7 @@ pub async fn print_journey(journey: &Journey, station_lookup: &HashMap<String, S
             &operator,
             from_station,
             &terminus,
+            i > 0,
             has_departed,
         );
     }
