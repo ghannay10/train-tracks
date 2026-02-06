@@ -1,29 +1,39 @@
-# Train Tracks
+# train-tracks
 
-Rust CLI that hits the Realtime Trains API (https://www.realtimetrains.co.uk/) and displays the departure board for stations in the UK and to specific destinations if desired
+CLI tool for checking train times between UK stations. Uses the National Rail journey planner API.
 
-## Prerequisites
+Shows scheduled times, realtime delays, platform info, and connecting trains.
 
-- Rust installed on your system.
-
-## Installation
+## Install
 
 ```bash
 git clone https://github.com/ghannay10/train-tracks
-cd ./train-tracks
+cd train-tracks
 cargo install --path .
-```
-
-## API sign-up
-
-Sign up to the Realtime Trains API (https://api.rtt.io/) and store your API username and password
-
-```
-export RTT_USERNAME=
-export RTT_PASSWORD=
 ```
 
 ## Usage
 
-- See departures from a station: `train-tracks <STATION CODE>`
-- See departures to a destination: `train-tracks <ORIGIN> <DESTINATION>`
+```bash
+# Journeys from Paddington to Newbury, next 2 hours
+train-tracks PAD NBY
+
+# Specify a start time
+train-tracks PAD NBY -t 14:00
+
+# Look further ahead
+train-tracks PAD NBY -H 4
+```
+
+Station codes are the 3-letter CRS codes (PAD, NBY, BRI, etc).
+
+## What it shows
+
+- Departure/arrival times (scheduled)
+- Journey duration
+- Status (on time, delayed, cancelled, departed)
+- Platform
+- Operator
+- Connecting trains with change times
+
+Departed trains show dimmed. Delays show in red with expected time.
