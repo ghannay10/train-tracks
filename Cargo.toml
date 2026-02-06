@@ -3,6 +3,9 @@ name = "train-tracks"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "train_tracks"
+path = "src/lib.rs"
 
 [[bin]]
 name = "train-tracks"
@@ -16,4 +19,3 @@ serde_json = "1.0"
 chrono = "0.4"
 clap = { version = "4.2", features = ["derive"] }
 colored = "2.0"
-base64 = "0.21"
